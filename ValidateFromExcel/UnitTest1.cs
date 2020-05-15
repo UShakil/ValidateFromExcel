@@ -26,6 +26,8 @@ namespace ValidateFromExcel
             #region FileStreams
             FileStream streamActualResult = File.Open(@"C:\Users\umars\Desktop\LoL\ActualResult.csv", FileMode.Open, FileAccess.Read);
             FileStream streamExpectedResult = File.Open(@"C:\Users\umars\Desktop\LoL\ExpectedResult.csv", FileMode.Open, FileAccess.Read);
+
+            // 2. Convertion from .xlsx to .csv
             #endregion
 
             #region DataSets
@@ -34,10 +36,37 @@ namespace ValidateFromExcel
 
             DataSet actualDataSet = excelDataReader1.AsDataSet();
 
+            // 3. Blocks of view+DataTable code need to be a separte functions
+
+
+            // Create a DataView in order to sort csv file in the right order
+            DataView viewActual = actualDataSet.Tables[0].DefaultView;
+            // List the column Names to filter
+            viewActual.Sort = "Column0, Column1 DESC";
+            //Create a DataTable based on the updated view after filtering
+            DataTable actualValuesTable = viewActual.ToTable();
+            //Give this new Table a Name
+            actualValuesTable.TableName = "Sorted";
+            //Add the new table to ActualDataSet
+            actualDataSet.Tables.Add(actualValuesTable);
+
             IExcelDataReader excelDataReader2;
             excelDataReader2 = ExcelReaderFactory.CreateCsvReader(streamExpectedResult);
 
             DataSet expectedDataSet = excelDataReader2.AsDataSet();
+
+            // Create a DataView in order to sort csv file in the right order
+            DataView viewExpected = expectedDataSet.Tables[0].DefaultView;
+            // List the column Names to filter
+            viewExpected.Sort = "Column0, Column1 DESC";
+            //Create a DataTable based on the updated view after filtering
+            DataTable expectedValuesTable = viewExpected.ToTable();
+            //Give this new Table a Name
+            expectedValuesTable.TableName = "Sorted";
+            //Add the new table to ActualDataSet
+            expectedDataSet.Tables.Add(expectedValuesTable);
+
+           
             #endregion
 
             #region LoadLists
@@ -77,7 +106,7 @@ namespace ValidateFromExcel
             string currentRowData = null;
 
 
-            for (int rowNumber = 1; rowNumber < dataset.Tables[0].Rows.Count; rowNumber++)
+            for (int rowNumber = 1; rowNumber < dataset.Tables["Sorted"].Rows.Count; rowNumber++)
             {
                 for (int numberOfColumns = 0; numberOfColumns < columnHeaders.Length; numberOfColumns++)
                 {
@@ -95,11 +124,12 @@ namespace ValidateFromExcel
         private string GetColumnValueFromExcel(DataSet result, int row, string columnName)
         {
             string columnValue = "";
-            for (int columnNumber = 0; columnNumber < result.Tables[0].Columns.Count; columnNumber++)
+            for (int columnNumber = 0; columnNumber < result.Tables["Sorted"].Columns.Count; columnNumber++)
             {
-                if (result.Tables[0].Rows[0][columnNumber].ToString() == columnName)
-                    columnValue = result.Tables[0].Rows[row][columnNumber].ToString();
+                if (result.Tables["Sorted"].Rows[0][columnNumber].ToString() == columnName)
+                    columnValue = result.Tables["Sorted"].Rows[row][columnNumber].ToString();
             }
+            // 1. Apply Data Formatting - living data format
             return columnValue;
         }
 
