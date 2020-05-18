@@ -5,6 +5,8 @@ using System.IO;
 using ExcelDataReader;
 using System.Data;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
+using System.Linq;
 
 #endregion
 namespace ValidateFromExcel
@@ -16,7 +18,7 @@ namespace ValidateFromExcel
         public void ReadFromExcelSheet()
         {
             #region ColumnHeaders
-            string[] columnHeaders = {"Journal Type", "Account Code", "Accounting Period", "Year of Account", "Transaction Date",
+            string[] columnHeaders = {"Journal Type", "Account Code", "Date", "Period", "Transaction Date",
                 "Settlement Currency", "Settlement Amount", "Origial Currency", "Original Amount", "Debit/Credit",
                 "Trading Partner/Counterparty (Incl Branc  Analysis Code", "Risk Code Analysis Code",
                 "Country of Insured Item  Analysis Code", "Transaction Code"
@@ -129,8 +131,71 @@ namespace ValidateFromExcel
                 if (result.Tables["Sorted"].Rows[0][columnNumber].ToString() == columnName)
                     columnValue = result.Tables["Sorted"].Rows[row][columnNumber].ToString();
             }
+
             // 1. Apply Data Formatting - living data format
-            return columnValue;
+            return ApplyFormatting(columnName, columnValue);
+        }
+
+        private string ApplyFormatting(string columnHeader, string columnValue)
+        {
+            string formattedString, year, month;
+
+            switch (columnHeader)
+                {
+                    case "Date":
+                        if (columnValue.Contains('/'))
+                        {
+                            formattedString = columnValue.Replace("/", "");
+                            formattedString = string.Concat(formattedString, " 00:00:00");
+                        }
+                        else
+                            formattedString = columnValue;                   
+                        break;
+                case "Transaction Date":
+                    if (columnValue.Contains('/'))
+                    {
+                        formattedString = columnValue.Replace("/", "");
+                        formattedString = string.Concat(formattedString, " 00:00:00");
+                    }
+                    else
+                        formattedString = columnValue;
+                    break;
+                case "Period":
+                        if (columnValue.Contains('/'))
+                        {
+                            char[] separator = { '/' };
+                            string[] date = columnValue.Split(separator, 2);
+                            year = date[0].ToString();
+                            month = date[1].ToString().TrimStart('0');
+                            formattedString = string.Concat(month, year);
+                        }
+                        else
+                            formattedString = columnValue;                        
+                        break;
+                    case "Original Amount":
+                        if (columnValue.Contains('.'))
+                        {
+                            int index = columnValue.IndexOf('.');
+                            formattedString = columnValue.Substring(0, index);
+                        }
+                        else
+                            formattedString = columnValue;
+                        break;
+                    case "Settlement Amount":
+                        if (columnValue.Contains('.'))
+                        {
+                            int index = columnValue.IndexOf('.');
+                            formattedString = columnValue.Substring(0, index);
+                        }
+                        else
+                            formattedString = columnValue;
+                        break;
+                    default:
+                        formattedString = columnValue;
+                        break;
+            }
+
+                return formattedString;  
         }
 
         private void ConsoleWriteLine(string output) => Console.WriteLine(DateTime.Now.ToString("hh:mm:ss") + " -- " + output);
