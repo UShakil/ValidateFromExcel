@@ -19,22 +19,39 @@ namespace ValidateFromExcel
         public void ReadFromExcelSheet()
         {
             int sheetToValidate;
-            string firstColumnToSortBy, secondColumnToSortBy;
+            string firstColumnToSortBy, secondColumnToSortBy, actualReportPath, expectedReportPath;
+            List<string> actualList, expectedList;
 
             // 1. Set out the Column Headers you want to validate - The column should exisit in both Sheets with matching name
             // Order of the headers is not relavent
             #region ColumnHeaders
-            string[] columnHeaders = {"Journal Type", "Account Code", "Date", "Period", "Transaction Date",
-                "Settlement Currency", "Settlement Amount", "Origial Currency", "Original Amount", "Debit/Credit",
-                "Trading Partner/Counterparty (Incl Branc  Analysis Code", "Risk Code Analysis Code",
-                "Country of Insured Item  Analysis Code", "Transaction Code"
+            string[] columnHeaders = {
+                "Journal Type",
+                "Account Code",
+                "Date",
+                "Period",
+                "Transaction Date",
+                "Settlement Currency",
+                "Settlement Amount",
+                "Origial Currency",
+                "Original Amount",
+                "Debit/Credit",
+                "Trading Partner/Counterparty (Incl Branc  Analysis Code",
+                "Risk Code Analysis Code",
+                "Country of Insured Item  Analysis Code",
+                "Transaction Code"
             };
             #endregion
 
-            // 2. Both files should be in a .CSV format. If not just convert them with File --> Save As..
             #region FileStreams
-            FileStream streamActualResult = File.Open(@"C:\Users\umars\Desktop\LoL\ActualResult.csv", FileMode.Open, FileAccess.Read);
-            FileStream streamExpectedResult = File.Open(@"C:\Users\umars\Desktop\LoL\ExpectedResult.csv", FileMode.Open, FileAccess.Read);
+            // 2. Both files should be in a .CSV format. If not just convert them with File --> Save As..
+            // Enter the path to where your .CSV files
+
+            actualReportPath = @"C:\Users\umars\Desktop\LoL\ActualResult.csv";
+            expectedReportPath = @"C:\Users\umars\Desktop\LoL\ExpectedResult.csv";
+
+            FileStream streamActualResult = File.Open(actualReportPath, FileMode.Open, FileAccess.Read);
+            FileStream streamExpectedResult = File.Open(expectedReportPath, FileMode.Open, FileAccess.Read);
 
             #endregion
 
@@ -49,9 +66,9 @@ namespace ValidateFromExcel
             // Note: For validating the first sheet of the document, pass parameter "0". For the second sheet "1" etc...
             // Note: For Sorting by column "A" pass parameter "Column0", For column "B" pass paramter "Column1" etc..
 
-            sheetToValidate = 0;
-            firstColumnToSortBy = "Column0";
-            secondColumnToSortBy = "Column1";
+            sheetToValidate = 0; // <-- this means the sheet to validate is the first sheet of the workbook
+            firstColumnToSortBy = "Column0"; // <-- Column A
+            secondColumnToSortBy = "Column1"; // <-- Column B
 
             actualDataSet = DataValidation.SortDataSet(actualDataSet, sheetToValidate, firstColumnToSortBy, secondColumnToSortBy);
           
@@ -65,31 +82,22 @@ namespace ValidateFromExcel
             // Note: For validating the first sheet of the document, pass parameter "0". For the second sheet "1" etc...
             // Note: For Sorting by column "A" pass parameter "Column0", For column "B" pass paramter "Column1" etc..
 
-            sheetToValidate = 0;
-            firstColumnToSortBy = "Column0";
-            secondColumnToSortBy = "Column1";
+            sheetToValidate = 0; // <-- this means the sheet to validate is the first sheet of the workbook
+            firstColumnToSortBy = "Column0"; // <-- Column A
+            secondColumnToSortBy = "Column1"; // <-- Column B
 
             expectedDataSet = DataValidation.SortDataSet(expectedDataSet, sheetToValidate, firstColumnToSortBy, secondColumnToSortBy);
          
             #endregion
 
             #region LoadLists
-            List<string> actualList = DataValidation.ReadDataSheet(actualDataSet, columnHeaders);
+           actualList = DataValidation.ReadDataSheet(actualDataSet, columnHeaders);
 
-            List<string> expectedList = DataValidation.ReadDataSheet(expectedDataSet, columnHeaders);
+            expectedList = DataValidation.ReadDataSheet(expectedDataSet, columnHeaders);
 
             #endregion
 
-
             DataValidation.PrintValidationResults(expectedList, actualList);
-        }
-
-       
-
-       
-
-       
-
-       
+        }     
     }
 }
