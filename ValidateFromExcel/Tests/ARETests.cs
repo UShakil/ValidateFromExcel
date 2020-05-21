@@ -70,7 +70,7 @@ namespace ValidateFromExcel
             firstColumnToSortBy = "Column0"; // <-- Column A
             secondColumnToSortBy = "Column1"; // <-- Column B
 
-            actualDataSet = DataValidation.SortDataSet(actualDataSet, sheetToValidate, firstColumnToSortBy, secondColumnToSortBy);
+            actualDataSet = DataValidation.SortDataSet(actualDataSet, firstColumnToSortBy, secondColumnToSortBy);
           
             IExcelDataReader excelDataReader2;
             excelDataReader2 = ExcelReaderFactory.CreateCsvReader(streamExpectedResult);
@@ -86,12 +86,12 @@ namespace ValidateFromExcel
             firstColumnToSortBy = "Column0"; // <-- Column A
             secondColumnToSortBy = "Column1"; // <-- Column B
 
-            expectedDataSet = DataValidation.SortDataSet(expectedDataSet, sheetToValidate, firstColumnToSortBy, secondColumnToSortBy);
+            expectedDataSet = DataValidation.SortDataSet(expectedDataSet, firstColumnToSortBy, secondColumnToSortBy);
          
             #endregion
 
             #region LoadLists
-           actualList = DataValidation.ReadDataSheet(actualDataSet, columnHeaders);
+            actualList = DataValidation.ReadDataSheet(actualDataSet, columnHeaders);
 
             expectedList = DataValidation.ReadDataSheet(expectedDataSet, columnHeaders);
 

@@ -60,6 +60,7 @@
     <Compile Include="Helper\DataValidation.cs" />
     <Compile Include="Tests\ARETests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Tests\GL__FilesValidation.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
