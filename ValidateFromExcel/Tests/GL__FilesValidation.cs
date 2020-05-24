@@ -1,12 +1,9 @@
 ﻿using ExcelDataReader;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
-using System.Collections.Generic;
+
 using System.Data;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using ValidateFromExcel.Helper;
 
 namespace ValidateFromExcel.Tests
@@ -18,21 +15,31 @@ namespace ValidateFromExcel.Tests
         public void GLComparison()
         {
 
-            string expectedReportPath;
+            string expectedReportPath, actualReportPath;
             string[] rowToAdd;
             bool isCredit;
 
             // 1. Read the expected file into a dataset
             expectedReportPath = @"C:\Users\umars\Desktop\JanExpectedResult.csv";
+            actualReportPath = @"C:\Users\umars\Desktop\JanActual.csv";
+
 
             FileStream streamExpectedResult = File.Open(expectedReportPath, FileMode.Open, FileAccess.Read);
+            FileStream streamSctualResult = File.Open(actualReportPath, FileMode.Open, FileAccess.Read);
 
             IExcelDataReader expectedDataReader;
             expectedDataReader = ExcelReaderFactory.CreateCsvReader(streamExpectedResult);
 
+            IExcelDataReader actualDataReader;
+            actualDataReader = ExcelReaderFactory.CreateCsvReader(streamSctualResult);
+
             DataSet expectedDataSet = expectedDataReader.AsDataSet();
+            DataSet actualDataSet = actualDataReader.AsDataSet();
 
             expectedDataReader.Dispose();
+            actualDataReader.Dispose();
+
+            DataTable actualTable = actualDataSet.Tables[0];
 
             DataTable originalTable = expectedDataSet.Tables[0];
 
@@ -40,66 +47,138 @@ namespace ValidateFromExcel.Tests
                 "Settlement Amount Debit", "Settlement Amount Credit", "Base Amount Debit", "Base Amount Credit",
                 "Risk Codes", "Syndicates", "Placement Type", "Original Currency", "Settlement Currency"};
 
+            string[] finalTableColumnNames = new string[] { "Journal Codes", "Accounts", "Date", "Period", "Original Currency", "Original Amount",
+            "Settlement Currency", "Settlement Amount", "Credit/Debit", "Syndicate", "Risk Codes", "Placement Type", "CYP", "Z", "Year", "New Account",
+            "Base Amount"};
+
             for (int i = 0; i < expectedTableColumnNames.Length; i++)
             {
                 originalTable.Columns[$"Column{i}"].ColumnName = expectedTableColumnNames[i];
             }
 
-            expectedDataSet = DataValidation.SortDataSet(expectedDataSet, originalTable.Columns["Journal Codes"], originalTable.Columns["Accounts"]);                    
-
-            DataTable sortedTable = expectedDataSet.Tables["Sorted"];
-
-            string[] finalExpectedTableColumnNames = new string[] { "Journal Code", "Accounts", "Date", "Period", "Original Currency", "Original Amount",
-            "Settlement Currency", "Settlement Amount", "Credit/Debit", "Syndicate", "Risk Codes", "Placement Type", "CYP", "Z", "Year", "New Account",
-            "Base Amount"};
-
-            DataTable finalTable = CreateDataTable(finalExpectedTableColumnNames);
-
-            expectedDataSet.Tables.Add("finalTable");
-
-
-            for (int i = 0; i < sortedTable.Rows.Count; i++)
+            for (int i = 0; i < finalTableColumnNames.Length; i++)
             {
-                // 2. Check wether this is a Debit or credit row
-                isCredit = ValidateCreditRow(sortedTable, i);
-
-                // 3. Read the rows of this sorted table and store the row in a string [] to be added into the final finalTable. will have to add additioanl 
-                // Credit/Debit field
-                rowToAdd = ReadTableRow(sortedTable, i, isCredit, finalExpectedTableColumnNames.Length);
-
-                // 4. create a new finalTable and keep adding the rows to it one by one (string [])...
-                InsertRowInTable(finalTable, rowToAdd);
+                actualTable.Columns[$"Column{i}"].ColumnName = finalTableColumnNames[i];
             }
 
-            string print = null;
+            expectedDataSet = DataValidation.SortDataSet(expectedDataSet, originalTable.Columns["Journal Codes"], originalTable.Columns["Accounts"]);       
+            
+            actualDataSet = DataValidation.SortDataSet(actualDataSet, actualTable.Columns["Journal Codes"], actualTable.Columns["Accounts"]);
+
+            DataTable sortedActualTable = actualDataSet.Tables["Sorted"];
+
+            DataTable sortedExpectedTable = expectedDataSet.Tables["Sorted"];
+
+            DataTable finalExpectedTable = CreateDataTable(finalTableColumnNames);
+
+            DataTable finalActualTable = CreateDataTable(finalTableColumnNames);
+
+
+            for (int i = 0; i < sortedExpectedTable.Rows.Count; i++)
+            {
+                // 2. Check wether this is a Debit or credit row
+                isCredit = ValidateCreditRow(sortedExpectedTable, i);
+
+                // 3. Read the rows of this sorted table and store the row in a string [] to be added into the finalTable. will have to add additional
+                // Credit/Debit field
+                rowToAdd = ReadTableRowFromExpected(sortedExpectedTable, i, isCredit, finalTableColumnNames.Length);
+
+                // 4. create a new finalTable and keep adding the rows to it one by one (string [])...
+                InsertRowInTable(finalExpectedTable, rowToAdd);
+            }
+
+            for (int i = 0; i < sortedActualTable.Rows.Count; i++)
+            {
+                rowToAdd = ReadTableRowFromActual(sortedActualTable, i, finalTableColumnNames.Length);
+
+                InsertRowInTable(finalActualTable, rowToAdd);
+            }
+
+            /* Some thoughts for the aggregation process
+             * 1 - Aggregation will only happen in the Expected file
+             * 2 - There should be method that takes the expected table, for the current row tells how many more rows below
+             *     have the same journal code and account. p.s. the row variable should be increased by that number...
+             * 3 - Need a second function to indicate which one of those rows are credit and which ones debit - put them in a strings[]
+             * 4 - Need a third method now to aggregate the credit/debit rows if more than 1
+            */
+
+            string printExpected = null;
+            string printActual = null;
 
             // 5. Compare the final expected table content with that of Actual sorted table..
 
-            for (int i = 0; i < finalTable.Rows.Count; i++)
-            {
-                for (int j = 0; j < finalTable.Columns.Count; j++)
-                {
-                    print += string.Concat("|", finalTable.Rows[i][j]);
-                }
+            Assert.AreEqual(finalExpectedTable.Rows.Count, sortedActualTable.Rows.Count, 
+                $"The row number in the two files differs. Expected file rows: {finalExpectedTable.Rows.Count}, " +
+                $"Actual file rows: {finalActualTable.Rows.Count}");
 
-                Console.WriteLine(print + "\n\n");
-                print = null;
+            for (int i = 0; i < finalExpectedTable.Rows.Count; i++)
+            {
+
+                Console.WriteLine($"Current Row is number: {i+1}");
+                for (int j = 0; j < finalExpectedTable.Columns.Count; j++)
+                {
+                    printExpected += string.Concat("|", finalExpectedTable.Rows[i][j]);
+                    printActual += string.Concat("|", finalActualTable.Rows[i][j]);
+
+                    Assert.AreEqual(finalExpectedTable.Rows[i][j], finalActualTable.Rows[i][j],
+                    $"FAIL:      There has been a mismatch!! Expected Value: {finalExpectedTable.Rows[i][j]}" +
+                    $"Actual Value: {finalActualTable.Rows[i][j]} \n" +
+                    $"Last mismatch found at Row: {i+1} \n and the sequence of \n" +
+                    $"Expected Row:\t {printExpected} \n" +
+                    $"Actual Row:\t {printActual} \n\n" +
+                    $"Before checking for mismatch in the files, ensure correct sorting algorithm has been applied!!");
+                }
+                Console.WriteLine($"SUCCESS!!! Row {i + 1} in both files has successfully been validated!");
+                Console.WriteLine(printExpected);
+                Console.WriteLine(printActual + "\n\n");
+                printExpected = null;
+                printActual = null;
             }
         }
 
-        private void InsertRowInTable(DataTable finalTable, string[] rowToAdd)
+        private string[] ReadTableRowFromActual(DataTable sortedActualTable, int rowNumber, int length)
         {
-            finalTable.Rows.Add(rowToAdd);
+            string[] rowContent = new string[length];
+
+            for (int i = 0; i < length; i++)
+            {
+                switch (i)
+                {
+                    case 2:
+                        rowContent[i] = string.Empty;
+                        break;
+                    case 3:
+                        rowContent[i] = string.Empty;
+                        break;
+                    case 12:
+                        rowContent[i] = string.Empty;
+                        break;
+                    case 13:
+                        rowContent[i] = string.Empty;
+                        break;
+                    case 14:
+                        rowContent[i] = string.Empty;
+                        break;
+                    case 15:
+                        rowContent[i] = string.Empty;
+                        break;
+                    default:
+                        rowContent[i] = sortedActualTable.Rows[rowNumber][i].ToString();
+                        break;
+                }
+            }
+            return rowContent;
         }
 
-        private string[] ReadTableRow(DataTable sortedTable, int rowNumber, bool isCredit, int length)
+        private void InsertRowInTable(DataTable finalTable, string[] rowToAdd) => finalTable.Rows.Add(rowToAdd);
+
+        private string[] ReadTableRowFromExpected(DataTable sortedTable, int rowNumber, bool isCredit, int length)
         {
             string[] rowContent = new string[length];
             string lastChar;
 
             for (int i = 0; i < length; i++)
             {
-
                 switch(i)
                 {
                     case 0:
@@ -128,6 +207,8 @@ namespace ValidateFromExcel.Tests
                         lastChar = rowContent[i].Substring(rowContent[i].Length - 1, 1);
                         if (lastChar == "0")
                             rowContent[i] = rowContent[i].TrimEnd('0');
+
+                        rowContent[i] = rowContent[i].Replace(",", "");
                         break;
                     case 6:
                         rowContent[i] = sortedTable.Rows[rowNumber]["Settlement Currency"].ToString();
@@ -143,6 +224,8 @@ namespace ValidateFromExcel.Tests
                         lastChar = rowContent[i].Substring(rowContent[i].Length - 1, 1);
                         if (lastChar == "0")
                             rowContent[i] = rowContent[i].TrimEnd('0');
+
+                        rowContent[i] = rowContent[i].Replace(",", "");
                         break;
                     case 8:
                         rowContent[i] = isCredit
@@ -181,6 +264,8 @@ namespace ValidateFromExcel.Tests
                         lastChar = rowContent[i].Substring(rowContent[i].Length - 1, 1);
                         if (lastChar == "0")
                             rowContent[i] = rowContent[i].TrimEnd('0');
+
+                        rowContent[i] = rowContent[i].Replace(",", "");
                         break;
                     default:
                         break;
@@ -190,20 +275,20 @@ namespace ValidateFromExcel.Tests
             return rowContent;
         }
 
-        private DataTable CreateDataTable(string[] finalExpectedTableColumnNames)
+        private DataTable CreateDataTable(string[] actualTableColumnNames)
         {
             // Create a new DataTable.
             DataTable finalTable = new DataTable("finalTable");
             // Declare variables for DataColumn and DataRow objects.
             DataColumn column;
 
-            for (int i = 0; i < finalExpectedTableColumnNames.Length; i++)
+            for (int i = 0; i < actualTableColumnNames.Length; i++)
             {
                 // Create new DataColumn, set DataType,
                 // ColumnName and add to DataTable.
                 column = new DataColumn();
                 column.DataType = System.Type.GetType("System.String");
-                column.ColumnName = finalExpectedTableColumnNames[i];
+                column.ColumnName = actualTableColumnNames[i];
                 column.ReadOnly = true;
                 column.Unique = false;
                 // Add the Column to the DataColumnCollection.
