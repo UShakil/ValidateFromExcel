@@ -74,20 +74,20 @@ namespace ValidateFromExcel.Helper
             return formattedString;
         }
 
-        internal static DataSet SortDataSet(DataSet dataSet, DataColumn dataColumn1, DataColumn dataColumn2)
+        internal static DataTable SortDataTable(DataTable table, DataColumn dataColumn1, DataColumn dataColumn2, DataColumn dataColumn3)
         {
             // Create a DataView in order to sort csv file in the right order
-            DataView viewActual = dataSet.Tables[0].DefaultView;
+            DataView viewActual = table.DefaultView;
             // List the column Names to filter
-            viewActual.Sort = $"{dataColumn1}, {dataColumn2} DESC";
+            viewActual.Sort = $"{dataColumn1}, {dataColumn2} DESC, {dataColumn3} DESC";
             //Create a DataTable based on the updated view after filtering
-            DataTable actualValuesTable = viewActual.ToTable();
+            DataTable sortedValuesTable = viewActual.ToTable();
             //Give this new Table a Name
-            actualValuesTable.TableName = "Sorted";
+            sortedValuesTable.TableName = "Sorted";
             //Add the new table to ActualDataSet
-            dataSet.Tables.Add(actualValuesTable);
+            //dataSet.Tables.Add(actualValuesTable);
 
-            return dataSet;
+            return sortedValuesTable;
         }
 
         public static  DataSet SortDataSet(DataSet dataSet, string sortColumn1, string sortColoumn2)

@@ -20,8 +20,8 @@ namespace ValidateFromExcel.Tests
             bool isCredit;
 
             // 1. Read the expected file into a dataset
-            expectedReportPath = @"C:\Users\umars\Desktop\JanExpectedResult.csv";
-            actualReportPath = @"C:\Users\umars\Desktop\JanActual.csv";
+            expectedReportPath = @"C:\Users\umars\Desktop\FebExpectedResult.csv";
+            actualReportPath = @"C:\Users\umars\Desktop\FebActual.csv";
 
 
             FileStream streamExpectedResult = File.Open(expectedReportPath, FileMode.Open, FileAccess.Read);
@@ -41,7 +41,7 @@ namespace ValidateFromExcel.Tests
 
             DataTable actualTable = actualDataSet.Tables[0];
 
-            DataTable originalTable = expectedDataSet.Tables[0];
+            DataTable expectedTable = expectedDataSet.Tables[0];
 
             string[] expectedTableColumnNames = new string[] { "Journal Codes", "Accounts", "Description", "Original Amount Debit", "Original Amount Credit",
                 "Settlement Amount Debit", "Settlement Amount Credit", "Base Amount Debit", "Base Amount Credit",
@@ -53,7 +53,7 @@ namespace ValidateFromExcel.Tests
 
             for (int i = 0; i < expectedTableColumnNames.Length; i++)
             {
-                originalTable.Columns[$"Column{i}"].ColumnName = expectedTableColumnNames[i];
+                expectedTable.Columns[$"Column{i}"].ColumnName = expectedTableColumnNames[i];
             }
 
             for (int i = 0; i < finalTableColumnNames.Length; i++)
@@ -61,38 +61,46 @@ namespace ValidateFromExcel.Tests
                 actualTable.Columns[$"Column{i}"].ColumnName = finalTableColumnNames[i];
             }
 
-            expectedDataSet = DataValidation.SortDataSet(expectedDataSet, originalTable.Columns["Journal Codes"], originalTable.Columns["Accounts"]);       
+            //expectedDataSet = DataValidation.SortDataSet(expectedDataSet, originalTable.Columns["Journal Codes"], originalTable.Columns["Accounts"]);       
             
-            actualDataSet = DataValidation.SortDataSet(actualDataSet, actualTable.Columns["Journal Codes"], actualTable.Columns["Accounts"]);
+            //actualDataSet = DataValidation.SortDataSet(actualDataSet, actualTable.Columns["Journal Codes"], actualTable.Columns["Accounts"]);
 
-            DataTable sortedActualTable = actualDataSet.Tables["Sorted"];
+            //DataTable sortedActualTable = actualDataSet.Tables["Sorted"];
 
-            DataTable sortedExpectedTable = expectedDataSet.Tables["Sorted"];
+            //DataTable sortedExpectedTable = expectedDataSet.Tables["Sorted"];
 
-            DataTable finalExpectedTable = CreateDataTable(finalTableColumnNames);
+            DataTable transformedExpectedTable = CreateDataTable(finalTableColumnNames);
 
-            DataTable finalActualTable = CreateDataTable(finalTableColumnNames);
+            DataTable transformedActualTable = CreateDataTable(finalTableColumnNames);
+
+            DataTable aggregatedExpectedTable = null;
 
 
-            for (int i = 0; i < sortedExpectedTable.Rows.Count; i++)
+            for (int i = 0; i < expectedTable.Rows.Count; i++)
             {
                 // 2. Check wether this is a Debit or credit row
-                isCredit = ValidateCreditRow(sortedExpectedTable, i);
+                isCredit = ValidateCreditRow(expectedTable, i);
 
                 // 3. Read the rows of this sorted table and store the row in a string [] to be added into the finalTable. will have to add additional
                 // Credit/Debit field
-                rowToAdd = ReadTableRowFromExpected(sortedExpectedTable, i, isCredit, finalTableColumnNames.Length);
+                rowToAdd = ReadTableRowFromExpected(expectedTable, i, isCredit, finalTableColumnNames.Length);
 
                 // 4. create a new finalTable and keep adding the rows to it one by one (string [])...
-                InsertRowInTable(finalExpectedTable, rowToAdd);
+                InsertRowInTable(transformedExpectedTable, rowToAdd);
             }
 
-            for (int i = 0; i < sortedActualTable.Rows.Count; i++)
+            for (int i = 0; i < actualTable.Rows.Count; i++)
             {
-                rowToAdd = ReadTableRowFromActual(sortedActualTable, i, finalTableColumnNames.Length);
+                rowToAdd = ReadTableRowFromActual(actualTable, i, finalTableColumnNames.Length);
 
-                InsertRowInTable(finalActualTable, rowToAdd);
+                InsertRowInTable(transformedActualTable, rowToAdd);
             }
+
+            DataTable sortedExpectedTable = DataValidation.SortDataTable(transformedExpectedTable, transformedExpectedTable.Columns["Journal Codes"], 
+                transformedExpectedTable.Columns["Accounts"], transformedExpectedTable.Columns["Credit/Debit"]);
+
+            DataTable sortedActualTable = DataValidation.SortDataTable(transformedActualTable, transformedActualTable.Columns["Journal Codes"],
+                transformedActualTable.Columns["Accounts"], transformedActualTable.Columns["Credit/Debit"]);
 
             /* Some thoughts for the aggregation process
              * 1 - Aggregation will only happen in the Expected file
@@ -102,38 +110,189 @@ namespace ValidateFromExcel.Tests
              * 4 - Need a third method now to aggregate the credit/debit rows if more than 1
             */
 
+            bool tableToBeAggregated = isTableToAggregated(sortedExpectedTable);
+
+            if (tableToBeAggregated)
+            {
+                aggregatedExpectedTable = CreateDataTable(finalTableColumnNames);
+
+                string[] row;
+                int numRowsToAggregate;
+
+                for (int currentRow = 0; currentRow < sortedExpectedTable.Rows.Count; currentRow++)
+                {
+                    // since the table needs to be aggregated, i want to know how many rows do i need to aggregate
+
+                    numRowsToAggregate = NumberOfRowsToAggregate(sortedExpectedTable, currentRow);
+
+                    if (numRowsToAggregate == 0)
+                    {
+                        row = AggregateRows(sortedExpectedTable, currentRow, numRowsToAggregate);
+                        InsertRowInTable(aggregatedExpectedTable, row);
+                    }
+                    else
+                    {
+                        row = AggregateRows(sortedExpectedTable, currentRow, numRowsToAggregate);
+                        InsertRowInTable(aggregatedExpectedTable, row);
+                        currentRow = currentRow + numRowsToAggregate;
+                    }
+                        
+                }
+            }
+
             string printExpected = null;
             string printActual = null;
 
             // 5. Compare the final expected table content with that of Actual sorted table..
 
-            Assert.AreEqual(finalExpectedTable.Rows.Count, sortedActualTable.Rows.Count, 
-                $"The row number in the two files differs. Expected file rows: {finalExpectedTable.Rows.Count}, " +
-                $"Actual file rows: {finalActualTable.Rows.Count}");
-
-            for (int i = 0; i < finalExpectedTable.Rows.Count; i++)
+            if (!tableToBeAggregated)
             {
+                Assert.AreEqual(transformedExpectedTable.Rows.Count, sortedActualTable.Rows.Count,
+               $"The row number in the two files differs. Expected file rows: {transformedExpectedTable.Rows.Count}, " +
+               $"Actual file rows: {transformedActualTable.Rows.Count}");
 
-                Console.WriteLine($"Current Row is number: {i+1}");
-                for (int j = 0; j < finalExpectedTable.Columns.Count; j++)
+                for (int i = 0; i < transformedActualTable.Rows.Count; i++)
                 {
-                    printExpected += string.Concat("|", finalExpectedTable.Rows[i][j]);
-                    printActual += string.Concat("|", finalActualTable.Rows[i][j]);
 
-                    Assert.AreEqual(finalExpectedTable.Rows[i][j], finalActualTable.Rows[i][j],
-                    $"FAIL:      There has been a mismatch!! Expected Value: {finalExpectedTable.Rows[i][j]}" +
-                    $"Actual Value: {finalActualTable.Rows[i][j]} \n" +
-                    $"Last mismatch found at Row: {i+1} \n and the sequence of \n" +
-                    $"Expected Row:\t {printExpected} \n" +
-                    $"Actual Row:\t {printActual} \n\n" +
-                    $"Before checking for mismatch in the files, ensure correct sorting algorithm has been applied!!");
+                    Console.WriteLine($"Current Row is number: {i + 1}\n");
+                    Console.Write("Column Headers\t ");
+                    for (int j = 0; j < transformedActualTable.Columns.Count; j++)
+                    {
+                        Console.Write(finalTableColumnNames[j] + "\t");
+                        printExpected += string.Concat("|", transformedExpectedTable.Rows[i][j]);
+                        printActual += string.Concat("|", transformedActualTable.Rows[i][j]);
+
+                        Assert.AreEqual(transformedExpectedTable.Rows[i][j], transformedActualTable.Rows[i][j],
+                        $"FAIL:      There has been a mismatch!! Expected Value: {transformedExpectedTable.Rows[i][j]}" +
+                        $"Actual Value: {transformedActualTable.Rows[i][j]} \n" +
+                        $"Last mismatch found at Row: {i + 1} \n and the sequence of \n" +
+                        $"Expected Row:\t {printExpected} \n" +
+                        $"Actual Row:\t {printActual} \n\n" +
+                        $"Before checking for mismatch in the files, ensure correct sorting algorithm has been applied!!");
+                    }
+                    Console.WriteLine($"SUCCESS!!! Row {i + 1} in both files has successfully been validated!");
+                    Console.WriteLine(printExpected);
+                    Console.WriteLine(printActual + "\n\n");
+                    printExpected = null;
+                    printActual = null;
                 }
-                Console.WriteLine($"SUCCESS!!! Row {i + 1} in both files has successfully been validated!");
-                Console.WriteLine(printExpected);
-                Console.WriteLine(printActual + "\n\n");
-                printExpected = null;
-                printActual = null;
             }
+            else
+            {
+               Assert.AreEqual(aggregatedExpectedTable.Rows.Count, sortedActualTable.Rows.Count,
+               $"The row number in the two files differs. Expected file rows: {aggregatedExpectedTable.Rows.Count}, " +
+               $"Actual file rows: {transformedActualTable.Rows.Count}");
+
+                for (int i = 0; i < transformedActualTable.Rows.Count; i++)
+                {
+
+                    Console.WriteLine($"Current Row is number: {i + 1}\n");
+                    Console.Write("Column Headers\t ");
+                    for (int j = 0; j < transformedActualTable.Columns.Count; j++)
+                    {
+                        Console.Write(finalTableColumnNames[j] + "\t");
+                        printExpected += string.Concat("|", aggregatedExpectedTable.Rows[i][j]);
+                        printActual += string.Concat("|", transformedActualTable.Rows[i][j]);
+
+                        Assert.AreEqual(aggregatedExpectedTable.Rows[i][j], transformedActualTable.Rows[i][j],
+                        $"FAIL:      There has been a mismatch!! Expected Value: {aggregatedExpectedTable.Rows[i][j]}" +
+                        $"Actual Value: {transformedActualTable.Rows[i][j]} \n" +
+                        $"Last mismatch found at Row: {i + 1} \n and the sequence of \n" +
+                        $"Expected Row:\t {printExpected} \n" +
+                        $"Actual Row:\t {printActual} \n\n" +
+                        $"Before checking for mismatch in the files, ensure correct sorting algorithm has been applied!!");
+                    }
+                    Console.WriteLine($"SUCCESS!!! Row {i + 1} in both files has successfully been validated!");
+                    Console.WriteLine(printExpected);
+                    Console.WriteLine(printActual + "\n\n");
+                    printExpected = null;
+                    printActual = null;
+                }
+            }
+           
+
+           
+        }
+
+        private string[] AggregateRows(DataTable sortedExpectedTable, int currentRow, int numRowsToAggregate)
+        {
+            string[] aggregatedRow = new string[sortedExpectedTable.Columns.Count];
+            double sum =0;
+            if (numRowsToAggregate == 0)
+            {
+                for (int columnIndex = 0; columnIndex < sortedExpectedTable.Columns.Count; columnIndex++)
+                {
+                    aggregatedRow[columnIndex] = sortedExpectedTable.Rows[currentRow][columnIndex].ToString();
+                }
+            }
+            else
+            {
+                for (int columnIndex = 0; columnIndex < sortedExpectedTable.Columns.Count; columnIndex++)
+                {
+                    switch (columnIndex)
+                    {
+                        case 5:
+                            for (int rowIndex = currentRow; rowIndex <= currentRow + numRowsToAggregate; rowIndex++)
+                            {
+                                sum += Convert.ToDouble(sortedExpectedTable.Rows[rowIndex][columnIndex].ToString());
+                            }
+                            aggregatedRow[columnIndex] = sum.ToString();
+                            break;
+                        case 7:
+                            sum = 0;
+                            for (int rowIndex = currentRow; rowIndex <= currentRow + numRowsToAggregate; rowIndex++)
+                            {
+                                sum += Convert.ToDouble(sortedExpectedTable.Rows[rowIndex][columnIndex].ToString());
+                            }
+                            aggregatedRow[columnIndex] = sum.ToString();
+                            break;
+                        case 16:
+                            sum = 0;
+                            for (int rowIndex = currentRow; rowIndex <= currentRow + numRowsToAggregate; rowIndex++)
+                            {
+                                sum += Convert.ToDouble(sortedExpectedTable.Rows[rowIndex][columnIndex].ToString());
+                            }
+                            aggregatedRow[columnIndex] = sum.ToString();
+                            break;
+                        default:
+                            aggregatedRow[columnIndex] = sortedExpectedTable.Rows[currentRow][columnIndex].ToString();
+                            break;
+                    }
+                }
+            }            
+            return aggregatedRow;
+        }
+
+        private int NumberOfRowsToAggregate(DataTable sortedExpectedTable, int currentRow)
+        {
+            int rowsToAggregate = 0;
+
+            for (int i = currentRow+1; i < sortedExpectedTable.Rows.Count; i++)
+            {
+                if (sortedExpectedTable.Rows[currentRow]["Journal Codes"].ToString() == sortedExpectedTable.Rows[i]["Journal Codes"].ToString()
+                    && sortedExpectedTable.Rows[currentRow]["Accounts"].ToString() == sortedExpectedTable.Rows[i]["Accounts"].ToString()
+                    && sortedExpectedTable.Rows[currentRow]["Credit/Debit"].ToString() == sortedExpectedTable.Rows[i]["Credit/Debit"].ToString())
+                    rowsToAggregate++;
+                else
+                    break;
+            }
+            return rowsToAggregate;
+
+        }
+
+        private bool isTableToAggregated(DataTable finalExpectedTable)
+        {
+            for (int currentRow = 0; currentRow < finalExpectedTable.Rows.Count; currentRow++)
+            {
+                for (int j = currentRow + 1; j < finalExpectedTable.Rows.Count; j++)
+                {
+                    if (finalExpectedTable.Rows[currentRow]["Journal Codes"].ToString() == finalExpectedTable.Rows[j]["Journal Codes"].ToString()
+                        && finalExpectedTable.Rows[currentRow]["Accounts"].ToString() == finalExpectedTable.Rows[j]["Accounts"].ToString()
+                        && finalExpectedTable.Rows[currentRow]["Credit/Debit"].ToString() == finalExpectedTable.Rows[j]["Credit/Debit"].ToString())
+                        return true;
+                }                
+            }
+            return false;           
         }
 
         private string[] ReadTableRowFromActual(DataTable sortedActualTable, int rowNumber, int length)
@@ -171,6 +330,8 @@ namespace ValidateFromExcel.Tests
         }
 
         private void InsertRowInTable(DataTable finalTable, string[] rowToAdd) => finalTable.Rows.Add(rowToAdd);
+
+        private void InsertRowInTable(DataTable finalTable, DataRow rowToAdd) => finalTable.Rows.Add(rowToAdd);
 
         private string[] ReadTableRowFromExpected(DataTable sortedTable, int rowNumber, bool isCredit, int length)
         {
