@@ -19,9 +19,9 @@ namespace ValidateFromExcel.Tests
             string[] rowToAdd;
             bool isCredit;
 
-            // 1. Read the expected file into a dataset
-            expectedReportPath = @"C:\Users\umars\Desktop\FebExpectedResult.csv";
-            actualReportPath = @"C:\Users\umars\Desktop\FebActual.csv";
+            // 1. Read the expected, actual files into a dataset
+            expectedReportPath = @"C:\Users\umars\Desktop\GL-Validation_TestData\FebExpectedResult_RowsMismatch.csv";
+            actualReportPath = @"C:\Users\umars\Desktop\GL-Validation_TestData\FebActual_RowsMismatch.csv";
 
 
             FileStream streamExpectedResult = File.Open(expectedReportPath, FileMode.Open, FileAccess.Read);
@@ -43,6 +43,9 @@ namespace ValidateFromExcel.Tests
 
             DataTable expectedTable = expectedDataSet.Tables[0];
 
+
+            // 2. column headers have been applied to the data set
+
             string[] expectedTableColumnNames = new string[] { "Journal Codes", "Accounts", "Description", "Original Amount Debit", "Original Amount Credit",
                 "Settlement Amount Debit", "Settlement Amount Credit", "Base Amount Debit", "Base Amount Credit",
                 "Risk Codes", "Syndicates", "Placement Type", "Original Currency", "Settlement Currency"};
@@ -61,13 +64,7 @@ namespace ValidateFromExcel.Tests
                 actualTable.Columns[$"Column{i}"].ColumnName = finalTableColumnNames[i];
             }
 
-            //expectedDataSet = DataValidation.SortDataSet(expectedDataSet, originalTable.Columns["Journal Codes"], originalTable.Columns["Accounts"]);       
-            
-            //actualDataSet = DataValidation.SortDataSet(actualDataSet, actualTable.Columns["Journal Codes"], actualTable.Columns["Accounts"]);
-
-            //DataTable sortedActualTable = actualDataSet.Tables["Sorted"];
-
-            //DataTable sortedExpectedTable = expectedDataSet.Tables["Sorted"];
+            // 3. Data tables have been tranformed in the same manner
 
             DataTable transformedExpectedTable = CreateDataTable(finalTableColumnNames);
 
@@ -96,6 +93,8 @@ namespace ValidateFromExcel.Tests
                 InsertRowInTable(transformedActualTable, rowToAdd);
             }
 
+            // 4. Sorting has been applied to both tables (take input form the user)
+
             DataTable sortedExpectedTable = DataValidation.SortDataTable(transformedExpectedTable, transformedExpectedTable.Columns["Journal Codes"], 
                 transformedExpectedTable.Columns["Accounts"], transformedExpectedTable.Columns["Credit/Debit"]);
 
@@ -109,6 +108,8 @@ namespace ValidateFromExcel.Tests
              * 3 - Need a second function to indicate which one of those rows are credit and which ones debit - put them in a strings[]
              * 4 - Need a third method now to aggregate the credit/debit rows if more than 1
             */
+
+            // 5. Access whether aggregation is required
 
             bool tableToBeAggregated = isTableToAggregated(sortedExpectedTable);
 
@@ -140,77 +141,137 @@ namespace ValidateFromExcel.Tests
                 }
             }
 
+            
             string printExpected = null;
             string printActual = null;
 
-            // 5. Compare the final expected table content with that of Actual sorted table..
+            // 6. Compare the final expected table content with that of Actual sorted table..
+
+            int numberOfMismatches = 0;
+            bool currentRowSuccess = true;
 
             if (!tableToBeAggregated)
             {
-                Assert.AreEqual(transformedExpectedTable.Rows.Count, sortedActualTable.Rows.Count,
-               $"The row number in the two files differs. Expected file rows: {transformedExpectedTable.Rows.Count}, " +
-               $"Actual file rows: {transformedActualTable.Rows.Count}");
-
-                for (int i = 0; i < transformedActualTable.Rows.Count; i++)
+                if (sortedExpectedTable.Rows.Count != sortedActualTable.Rows.Count)
                 {
+                    Console.WriteLine($"ERROR!!! The number of rows differs in the two files.\n " +
+                        $" Expected n* of rows in the expected view is: { sortedExpectedTable.Rows.Count}.\n " +
+                        $" Actual n* of rows in the actual view is: { sortedActualTable.Rows.Count}.\n ");
 
-                    Console.WriteLine($"Current Row is number: {i + 1}\n");
-                    Console.Write("Column Headers\t ");
-                    for (int j = 0; j < transformedActualTable.Columns.Count; j++)
+                    Console.WriteLine("The final expected view is printed as below. Please sort your Actual result sheet for comparison!!! \n");
+
+                    for (int i = 0; i < sortedExpectedTable.Rows.Count; i++)
                     {
-                        Console.Write(finalTableColumnNames[j] + "\t");
-                        printExpected += string.Concat("|", transformedExpectedTable.Rows[i][j]);
-                        printActual += string.Concat("|", transformedActualTable.Rows[i][j]);
+                        for (int j = 0; j < sortedExpectedTable.Columns.Count; j++)
+                        {
+                            printExpected += string.Concat("|", sortedExpectedTable.Rows[i][j]);
+                        }
+                        
+                        Console.WriteLine($"Row number: {i+1} \t" + printExpected + "\n");
+                        printExpected = null;
 
-                        Assert.AreEqual(transformedExpectedTable.Rows[i][j], transformedActualTable.Rows[i][j],
-                        $"FAIL:      There has been a mismatch!! Expected Value: {transformedExpectedTable.Rows[i][j]}" +
-                        $"Actual Value: {transformedActualTable.Rows[i][j]} \n" +
-                        $"Last mismatch found at Row: {i + 1} \n and the sequence of \n" +
-                        $"Expected Row:\t {printExpected} \n" +
-                        $"Actual Row:\t {printActual} \n\n" +
-                        $"Before checking for mismatch in the files, ensure correct sorting algorithm has been applied!!");
                     }
-                    Console.WriteLine($"SUCCESS!!! Row {i + 1} in both files has successfully been validated!");
+
+                    Assert.Fail("\n The validation cannot continue due to mismatches in the number of rows");
+                }
+
+
+                printExpected = null;
+
+                for (int i = 0; i < sortedActualTable.Rows.Count; i++)
+                {
+                    Console.WriteLine($"Current Row is number: {i + 1}\n");
+                    for (int j = 0; j < sortedActualTable.Columns.Count; j++)
+                    {
+                        printExpected += string.Concat("|", sortedExpectedTable.Rows[i][j]);
+                        printActual += string.Concat("|", sortedActualTable.Rows[i][j]);
+
+                        if (sortedExpectedTable.Rows[i][j].ToString() != sortedActualTable.Rows[i][j].ToString())
+                        {
+                            Console.WriteLine($"There is a mismatch at column: {sortedExpectedTable.Columns[j].ColumnName}\n " +
+                                $"Expected file value: {sortedExpectedTable.Rows[i][j]}\n " +
+                                $"Actual file value: {sortedActualTable.Rows[i][j]}");
+                            numberOfMismatches++;
+                            currentRowSuccess = false;
+                        }
+                    }
+                    if (currentRowSuccess)
+                    {
+                        Console.WriteLine($"SUCCESS!!! Row {i + 1} in both files has successfully been validated!\n");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"ATTENTION!!! Row {i + 1} has {numberOfMismatches} number of mismatches!\n");
+                    }
                     Console.WriteLine(printExpected);
                     Console.WriteLine(printActual + "\n\n");
                     printExpected = null;
                     printActual = null;
+                    numberOfMismatches = 0;
+                    currentRowSuccess = true;
                 }
             }
             else
             {
-               Assert.AreEqual(aggregatedExpectedTable.Rows.Count, sortedActualTable.Rows.Count,
-               $"The row number in the two files differs. Expected file rows: {aggregatedExpectedTable.Rows.Count}, " +
-               $"Actual file rows: {transformedActualTable.Rows.Count}");
+                printExpected = null;
 
-                for (int i = 0; i < transformedActualTable.Rows.Count; i++)
+                if (aggregatedExpectedTable.Rows.Count != sortedActualTable.Rows.Count)
+                {
+                    Console.WriteLine($"ERROR!!! The number of rows differs in the two files.\n " +
+                        $" Expected n* of rows in the expected view is: { aggregatedExpectedTable.Rows.Count}.\n " +
+                        $" Actual n* of rows in the actual view is: { sortedActualTable.Rows.Count}.\n ");
+
+                    Console.WriteLine("The final expected view is printed as below. Please sort your Actual result sheet for comparison!!! \n");
+
+                    for (int i = 0; i < aggregatedExpectedTable.Rows.Count; i++)
+                    {
+                        for (int j = 0; j < aggregatedExpectedTable.Columns.Count; j++)
+                        {
+                            printExpected += string.Concat("|", aggregatedExpectedTable.Rows[i][j]);
+                        }                      
+                        Console.WriteLine($"Row number: {i + 1} \t" + printExpected + "\n");
+                        printExpected = null;
+                    }
+
+                    Assert.Fail("\n The validation cannot continue due to mismatches in the number of rows");
+                }
+
+                for (int i = 0; i < sortedActualTable.Rows.Count; i++)
                 {
 
                     Console.WriteLine($"Current Row is number: {i + 1}\n");
-                    Console.Write("Column Headers\t ");
-                    for (int j = 0; j < transformedActualTable.Columns.Count; j++)
+                    for (int j = 0; j < sortedActualTable.Columns.Count; j++)
                     {
-                        Console.Write(finalTableColumnNames[j] + "\t");
+                        //Console.Write(finalTableColumnNames[j] + "\t");
                         printExpected += string.Concat("|", aggregatedExpectedTable.Rows[i][j]);
-                        printActual += string.Concat("|", transformedActualTable.Rows[i][j]);
+                        printActual += string.Concat("|", sortedActualTable.Rows[i][j]);
 
-                        Assert.AreEqual(aggregatedExpectedTable.Rows[i][j], transformedActualTable.Rows[i][j],
-                        $"FAIL:      There has been a mismatch!! Expected Value: {aggregatedExpectedTable.Rows[i][j]}" +
-                        $"Actual Value: {transformedActualTable.Rows[i][j]} \n" +
-                        $"Last mismatch found at Row: {i + 1} \n and the sequence of \n" +
-                        $"Expected Row:\t {printExpected} \n" +
-                        $"Actual Row:\t {printActual} \n\n" +
-                        $"Before checking for mismatch in the files, ensure correct sorting algorithm has been applied!!");
+                        if (aggregatedExpectedTable.Rows[i][j].ToString() != sortedActualTable.Rows[i][j].ToString())
+                        {
+                            Console.WriteLine($"There is a mismatch at column: {aggregatedExpectedTable.Columns[j].ColumnName}\n " +
+                                $"Expected file value: {aggregatedExpectedTable.Rows[i][j]}\n " +
+                                $"Actual file value: {sortedActualTable.Rows[i][j]}");
+                            numberOfMismatches++;
+                            currentRowSuccess = false;
+                        }
                     }
-                    Console.WriteLine($"SUCCESS!!! Row {i + 1} in both files has successfully been validated!");
+                    if (currentRowSuccess)
+                    {
+                        Console.WriteLine($"SUCCESS!!! Row {i + 1} in both files has successfully been validated!\n");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"ATTENTION!!! Row {i + 1} has {numberOfMismatches} number of mismatches!\n");
+                    }
+                    
                     Console.WriteLine(printExpected);
                     Console.WriteLine(printActual + "\n\n");
                     printExpected = null;
                     printActual = null;
+                    numberOfMismatches = 0;
+                    currentRowSuccess = true;
                 }
-            }
-           
-
+            }        
            
         }
 

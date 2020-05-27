@@ -79,7 +79,7 @@ namespace ValidateFromExcel.Helper
             // Create a DataView in order to sort csv file in the right order
             DataView viewActual = table.DefaultView;
             // List the column Names to filter
-            viewActual.Sort = $"{dataColumn1}, {dataColumn2} DESC, {dataColumn3} DESC";
+            viewActual.Sort = $"{dataColumn1} ASC, {dataColumn2} ASC, {dataColumn3} ASC";
             //Create a DataTable based on the updated view after filtering
             DataTable sortedValuesTable = viewActual.ToTable();
             //Give this new Table a Name
